@@ -1,0 +1,12 @@
+# Config del servizio ml-api (caricata da src/config.py all'avvio).
+# Valori assenti → fallback sui default hardcoded (nessun cambiamento di comportamento).
+
+model:
+  # Sorgente del modello: URL remota (scaricata a ogni avvio) OPPURE path locale
+  # dentro al container (es. "/app/models/sentiment_it.pkl") per usare un modello proprio.
+  # NOTA: il modello del corso è CountVectorizer(117 parole, vocabolario INGLESE)
+  # + MultinomialNB — query in italiano → tutte fuori vocabolario → risposta
+  # costante "negative"/0.34. Per l'italiano serve un modello ri-addestrato
+  # (basta puntare "source" a un proprio .pkl con la stessa interfaccia
+  # predict/predict_proba).
+  source: https://raw.githubusercontent.com/Profession-AI/progetti-devops/main/Deploy%20e%20monitoraggio%20di%20un%20modello%20di%20sentiment%20analysis%20per%20recensioni/sentiment_analysis_model.pkl

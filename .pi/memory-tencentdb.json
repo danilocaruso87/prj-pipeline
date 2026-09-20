@@ -1,0 +1,20 @@
+{
+  "_nota": "Memoria di PROGETTO isolata (generata dalla dashboard del bridge, D9): serviceId dedicato -> DB isolato tdai-memory/data/instances/proj-cdci/vectors.db. includePersona/includeSceneNav OFF (V13) e startupProtocol OFF (V14: l'estensione non inietta WORKLOG/PLAN/AGENTS della root — ci pensa il bridge col contesto scelto). Chain: DEFAULT -> globale -> QUESTO file -> env.",
+  "server": {
+    "serviceId": "proj-cdci"
+  },
+  "recall": {
+    "enabled": true,
+    "includePersona": false,
+    "includeSceneNav": false
+  },
+  "startupProtocol": {
+    "enabled": false
+  },
+  "capture": {
+    "enabled": true
+  },
+  "tools": {
+    "enabled": true
+  }
+}

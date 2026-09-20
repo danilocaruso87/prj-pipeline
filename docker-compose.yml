@@ -1,0 +1,74 @@
+services:
+  ml-api:
+    build: .
+    image: mio-progetto:latest
+    container_name: ml-api
+    ports:
+      - "8003:8000"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.13.2
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.1.3
+    container_name: grafana
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+  jenkins:
+    build: ./jenkins
+    image: jenkins-cdci:latest
+    container_name: jenkins
+    ports:
+      - "8089:8080"        # UI: http://localhost:8089
+      - "50001:50000"      # porte agenti (jnlm)
+    environment:
+      - JENKINS_UC_ADMIN_USER=${JENKINS_ADMIN_USER:-admin}
+      - JENKINS_UC_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:-}
+      - JAVA_OPTS=-Xms512m -Xmx1024m
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./jenkins/configuration-as-code.yaml:/var/jenkins_home/configuration-as-code.yaml
+      - /var/run/docker.sock:/var/run/docker.sock   # serve per docker build/run dentro la pipeline
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # serve per il healthcheck contro ml-api (porta 8003)
+    depends_on:
+      - ml-api
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+
