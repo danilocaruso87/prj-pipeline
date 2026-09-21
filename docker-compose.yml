@@ -48,6 +48,7 @@ services:
       - "3001:3000"
     restart: unless-stopped
 
+
   jenkins:
     build: ./jenkins
     image: jenkins-cdci:latest
@@ -58,7 +59,8 @@ services:
     environment:
       - JENKINS_UC_ADMIN_USER=${JENKINS_ADMIN_USER:-admin}
       - JENKINS_UC_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:-}
-      - JAVA_OPTS=-Xms512m -Xmx1024m
+      - CASC_JENKINS_CONFIG=/var/jenkins_home/configuration-as-code.yaml
+      - JAVA_OPTS=-Xms512m -Xmx1024m -Djenkins.install.runSetupWizard=false
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./jenkins/configuration-as-code.yaml:/var/jenkins_home/configuration-as-code.yaml
@@ -68,6 +70,7 @@ services:
     depends_on:
       - ml-api
     restart: unless-stopped
+    group_add: ["${DOCKER_GID}"]
 
 volumes:
   jenkins_home:

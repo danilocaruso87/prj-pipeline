@@ -20,8 +20,7 @@ pipeline {
 
         stage("Checkout") {
             steps {
-                git url: "https://github.com/danilocaruso87/prj-pipeline.git",
-                    branch: "main"
+                checkout scm
             }
         }
 
@@ -36,7 +35,7 @@ pipeline {
                 // dry-run: lancia l'immagine su una porta provvisoria e verifica /health
                 sh "docker rm -f ml-api-ci || true"
                 sh "docker run -d --name ml-api-ci -p 18003:8000 ${IMAGE_NAME}:latest"
-                sh """
+                sh '''
                     ok=0
                     for i in $(seq 1 12); do
                         if curl -sf http://127.0.0.1:18003/health; then ok=1; break; fi
@@ -44,7 +43,7 @@ pipeline {
                     done
                     [ $ok -eq 1 ] || { echo "healthcheck fallito"; exit 1; }
                     echo "healthcheck OK"
-                """
+                '''
             }
             post {
                 always {
@@ -59,11 +58,11 @@ pipeline {
                 sh "docker run -d --name ml-api -p 8003:8000 --restart unless-stopped ${IMAGE_NAME}:latest"
                 sh """
                     ok=0
-                    for i in $(seq 1 12); do
+                    for i in \$(seq 1 12); do
                         if curl -sf ${env.HEALTH_URL}; then ok=1; break; fi
-                        echo "attendo deploy... ($i/12)"; sleep 5
+                        echo "attendo deploy... (\$i/12)"; sleep 5
                     done
-                    [ $ok -eq 1 ] || { echo "deploy non sano"; exit 1; }
+                    [ \$ok -eq 1 ] || { echo "deploy non sano"; exit 1; }
                     echo "Deploy OK"
                 """
             }
