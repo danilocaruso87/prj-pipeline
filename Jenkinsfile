@@ -38,7 +38,7 @@ pipeline {
                 sh '''
                     ok=0
                     for i in $(seq 1 12); do
-                        if curl -sf http://127.0.0.1:18003/health; then ok=1; break; fi
+                        if curl -sf http://host.docker.internal:18003/health; then ok=1; break; fi
                         echo "attendo healthcheck... ($i/12)"; sleep 5
                     done
                     [ $ok -eq 1 ] || { echo "healthcheck fallito"; exit 1; }
