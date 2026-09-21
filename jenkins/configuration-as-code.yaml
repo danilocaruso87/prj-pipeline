@@ -3,32 +3,10 @@
 jenkins:
   systemMessage: "Jenkins CI/CD - Progetto cdci"
   securityRealm:
-    local
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_UC_ADMIN_USER:-admin}"
+          password: "${JENKINS_UC_ADMIN_PASSWORD}"
   authorizationStrategy:
-    loggedInUsersCanDoAnything
-  pluginManagement:
-    periodicUpdateInterval: 12
-    installs:
-      - name: git
-        spec:
-          version: "latest"
-      - name: git-client
-        spec:
-          version: "latest"
-      - name: workflow-aggregator
-        spec:
-          version: "latest"
-      - name: workflow-cps
-        spec:
-          version: "latest"
-      - name: workflow-basic-steps
-        spec:
-          version: "latest"
-      - name: docker-plugin
-        spec:
-          version: "latest"
-      - name: blueocean
-        spec:
-          version: "latest"
-unsecured:
-  allowedStackTraces: true
+    loggedInUsersCanDoAnything: { }
