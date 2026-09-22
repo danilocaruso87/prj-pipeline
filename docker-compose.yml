@@ -4,7 +4,7 @@ services:
     image: mio-progetto:latest
     container_name: ml-api
     ports:
-      - "8003:8000"
+      - "${ML_API_PORT:-8003}:8000"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 10s
@@ -19,7 +19,7 @@ services:
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     restart: unless-stopped
 
   node-exporter:
@@ -35,7 +35,7 @@ services:
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
     ports:
-      - "9100:9100"
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
     restart: unless-stopped
 
   grafana:
@@ -45,7 +45,10 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     ports:
-      - "3001:3000"
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
     restart: unless-stopped
 
 
@@ -54,11 +57,13 @@ services:
     image: jenkins-cdci:latest
     container_name: jenkins
     ports:
-      - "8089:8080"        # UI: http://localhost:8089
-      - "50001:50000"      # porte agenti (jnlm)
+      - "${JENKINS_PORT:-8089}:8080"           # UI
+      - "${JENKINS_AGENT_PORT:-50001}:50000"   # porte agenti (jnlp)
     environment:
       - JENKINS_UC_ADMIN_USER=${JENKINS_ADMIN_USER:-admin}
       - JENKINS_UC_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD:-}
+      - ML_API_PORT=${ML_API_PORT:-8003}          # porta di deploy usata dalla pipeline
+      - CI_HEALTH_PORT=${CI_HEALTH_PORT:-18003}   # porta dry-run health check
       - CASC_JENKINS_CONFIG=/var/jenkins_home/configuration-as-code.yaml
       - JAVA_OPTS=-Xms512m -Xmx1024m -Djenkins.install.runSetupWizard=false
     volumes:
@@ -66,7 +71,7 @@ services:
       - ./jenkins/configuration-as-code.yaml:/var/jenkins_home/configuration-as-code.yaml
       - /var/run/docker.sock:/var/run/docker.sock   # serve per docker build/run dentro la pipeline
     extra_hosts:
-      - "host.docker.internal:host-gateway"  # serve per il healthcheck contro ml-api (porta 8003)
+      - "host.docker.internal:host-gateway"  # serve al healthcheck della pipeline contro ml-api
     depends_on:
       - ml-api
     restart: unless-stopped
