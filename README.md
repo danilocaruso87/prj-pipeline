@@ -1,128 +1,99 @@
-# cdci — ML API + Monitoring + CI/CD
+# cdci
 
-Microservizio FastAPI (sentiment analysis) con monitoring Prometheus/Grafana e
-pipeline CI/CD su Jenkins: **push su `main` → build automatica → health check →
-deploy** del nuovo container, senza toccare nulla.
+Piccolo progetto che mette insieme un'API FastAPI di sentiment analysis, un
+po' di monitoring con Prometheus e Grafana, e una pipeline CI/CD su Jenkins:
+a ogni push su main viene buildata l'immagine nuova, si fa un health check e
+si sostituisce il container vecchio. Tutto automatico.
 
-Tutto si alza con un solo `docker compose up -d`. Admin di Jenkins, job `cdci`,
-datasource e dashboards Grafana vengono creati al primo avvio (seed): nessuna
-configurazione manuale in UI.
+Si alza con un docker compose up -d. Il job di Jenkins, l'utente admin e le
+dashboards di Grafana vengono creati al primo avvio, quindi nella UI non c'è
+niente da configurare a mano.
 
-## Requisiti
+## Per partire
 
-- Docker + Docker Compose v2 (`docker compose ...`)
-- git (per clonare e per il push che innesca la pipeline)
+Serve Docker con compose v2 e git.
 
-## Avvio (4 mosse)
-
-```bash
-# 1) clona ed entra
-git clone https://github.com/danilocaruso87/prj-pipeline.git cdci && cd cdci
-
-# 2) crea la tua configurazione locale
+```
+git clone https://github.com/danilocaruso87/prj-pipeline.git
+cd prj-pipeline
 cp .env.example .env
+```
 
-# 3) scrivi il gruppo docker della TUA macchina (varia da PC a PC)
+Nel .env c'è una cosa da sistemare per forza: il DOCKER_GID, cioè il gruppo
+del socket docker della propria macchina, che serve a Jenkins per fare le
+build e che è diverso su ogni PC.
+
+```
 echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
-#    ...e sistema JENKINS_ADMIN_PASSWORD nel .env
+```
 
-# 4) accendi tutto
+Tutte le password (Jenkins, Grafana) stanno nel .env e si cambiano lì, così
+come le porte se quelle di default danno fastidio. Poi si accende tutto:
+
+```
 docker compose up -d --build
 ```
 
-Jenkins impiega ~1 minuto al primo avvio (plugin + job seed). Poi la pipeline
-parte da sola a ogni push su `main`.
+Il primo avvio di Jenkins mette un minuto circa (carica i plugin). Dopo di
+che la pipeline parte da sola a ogni push su main.
 
-## Installazione locale (senza Docker)
+## Dove trovare le cose
 
-Tutte le dipendenze Python del progetto (FastAPI, uvicorn, pydantic,
-scikit-learn, prometheus_client, ...) sono elencate in `requirements.txt`.
-Con Docker non serve nulla: la build le scarica già da sola. Per eseguire
-l'API in locale invece:
+L'API risponde su http://localhost:8003. Lo stato su /health, le predizioni
+su /predict con un POST json tipo {"text": "che bello"}, le metriche su
+/metrics/.
 
-```bash
-# 1) ambiente virtuale e attivazione
+Jenkins sta su http://localhost:8089, utente admin e la password che avete
+messo nel .env. Dentro c'è già il job cdci: dalla pagina del job si vedono la
+Stage View e il Console Output di ogni build.
+
+Grafana sta su http://localhost:3001 ed entra con admin/admin (le dashboards
+sono nella cartella Applications). Prometheus su http://localhost:9090, dove
+sotto Status → Targets si vedono i due target che deve raccogliere. Le
+metriche della macchina sono su http://localhost:9100.
+
+Tutte queste porte si cambiano dal .env.
+
+## Far girare l'API in locale, senza Docker
+
+Le dipendenze Python stanno nel requirements.txt, quindi basta un venv:
+
+```
 python3 -m venv .venv
 source .venv/bin/activate
-
-# 2) scarica TUTTE le dipendenze dal requirements.txt
 pip install -r requirements.txt
-
-# 3) avvia l'API (senza Docker la porta e' libera, qui 8000)
 uvicorn src.api:app --host 0.0.0.0 --port 8000
 ```
 
-Se aggiungi una dipendenza nuova, aggiornalo con `pip freeze > requirements.txt`
-e committalo: la pipeline lo preleva al push successivo.
-
-## Servizi e indirizzi
-
-Porte di default (si cambiano tutte nel `.env`, vedi sotto):
-
-| Servizio | Indirizzo | Login | Cosa ci trovi |
-|---|---|---|---|
-| **API** (`ml-api`) | http://localhost:8003 | — | l'app deployata: `POST /predict`, `GET /health`, `GET /metrics/` |
-| **Jenkins** | http://localhost:8089 | admin / password del `.env` | job `cdci` già configurato, Stage View e Console Output |
-| **Grafana** | http://localhost:3001 | admin / admin | dashboard in cartella *Applications*: Application Overview, Node Overview |
-| **Prometheus** | http://localhost:9090 | — | metriche; target su `Status → Targets` (ml-api, node-exporter) |
-| **Node Exporter** | http://localhost:9100/metrics | — | metriche della macchina host |
-
-Esempio di predizione:
-
-```bash
-curl -X POST http://localhost:8003/predict -H 'Content-Type: application/json' -d '{"text": "che bello"}'
-```
+Se si aggiunge una dipendenza nuova, aggiornare il requirements (un pip freeze
+> requirements.txt va benissimo) e committarlo, sennò la build successiva non
+la trova.
 
 ## Come funziona la pipeline
 
-Ogni push su `main` (rilevato dal polling, max 2 minuti) fa girare il job `cdci`:
+Ogni push su main (il polling ci mette al massimo un paio di minuti ad
+accorgersene) fa girare il job cdci: checkout del codice, build dell'immagine
+con tag ci-N, poi il container nuovo viene fatto partire su una porta
+provvisoria per un health check ( massimo 60 secondi ) e solo se risponde
+viene deployato al posto del vecchio ml-api. Se qualcosa fallisce non si
+deployta niente e il container vecchio continua a servire.
 
-1. **Checkout** — preleva il codice dal repo
-2. **Build immagine** — `docker build` con tag `mio-progetto:ci-N` e `latest`
-3. **Health check** — dry-run del container nuovo su una porta provvisoria
-   (`CI_HEALTH_PORT`, default 18003) e verifica `/health` per max 60s
-4. **Deploy** — sostituisce il container `ml-api` (stessa porta di `.env`) e
-   riverifica `/health`
+## Testare la pipeline sul proprio repo
 
-Se una build fallisce non si deploya nulla: il container vecchio continua a
-servire le richieste.
+Per provarla serve un fork: si fa il fork, poi su Jenkins si apre il job cdci
+→ Configure, si cambia il Repository URL nella sezione Pipeline mettendo il
+proprio, si salva. Da lì in poi ogni push sul proprio main avvia la pipeline.
 
-## Configurazione (`.env`)
+## Note
 
-| Variabile | Default | Scopo |
-|---|---|---|
-| `ML_API_PORT` | `8003` | porta pubblica dell'API |
-| `JENKINS_ADMIN_USER` / `JENKINS_ADMIN_PASSWORD` | `admin` / — | login Jenkins (creato via JCasC) |
-| `JENKINS_PORT` | `8089` | UI Jenkins |
-| `JENKINS_AGENT_PORT` | `50001` | porta agenti JNLP |
-| `DOCKER_GID` | — | gruppo del socket docker (obbligatorio, vedi mossa 3) |
-| `GRAFANA_PORT` | `3001` | UI Grafana |
-| `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | `admin` / `admin` | login Grafana |
-| `PROMETHEUS_PORT` | `9090` | UI Prometheus |
-| `NODE_EXPORTER_PORT` | `9100` | metriche host |
-| `CI_HEALTH_PORT` | `18003` | porta dry-run della pipeline |
+Il DOCKER_GID serve perché Jenkins usa il docker dell'host tramite il socket
+montato nel container, e il gruppo di quel socket cambia da macchina a
+macchina.
 
-Dopo aver cambiato una porta: `docker compose up -d` (ricrea i servizi
-interessati). La pipeline legge le porte dal container Jenkins, quindi deploya
-sempre sulla porta scelta nel `.env`.
+Dopo un deploy fatto dalla pipeline, il container ml-api non ha più le label
+di compose: se un docker compose up -d si lamenta di un conflitto su ml-api
+è normale, si toglie il container a mano (docker rm -f ml-api) e si rilancia
+compose.
 
-## Usare il proprio fork
-
-Il job `cdci` punta a questo repo. Per usare il tuo fork: Jenkins → job `cdci` →
-**Configure** → sezione *Pipeline* → cambia **Repository URL** → Save. La
-modifica resta nel volume `jenkins_home`, nessun altro passo.
-
-## Note operative
-
-- **Perché `DOCKER_GID`**: la pipeline esegue `docker build` sul Docker
-  dell'host tramite il socket montato; il gruppo del socket cambia da macchina
-  a macchina, quindi va scritto una volta nel proprio `.env`.
-- **Reset di Jenkins** (perde job, build e utenti ricreati poi dal seed):
-  `docker compose down jenkins && docker volume rm cdci_jenkins_home && docker compose up -d jenkins`
-- Dopo un deploy della pipeline il container `ml-api` non ha le label compose:
-  se un successivo `docker compose up -d` segnala *conflict su "ml-api"* è normale —
-  `docker rm -f ml-api` e rilancia `docker compose up -d`.
-- I dati di monitoraggio non persistono (Grafana è senza volume): i dashboard
-  vengono riprovisionati a ogni avvio dal folder `monitoring/`.
-- Le metriche dell'app sono esposte su `/metrics/` e scarpite da Prometheus
-  ogni 5s (config in `monitoring/prometheus/prometheus.yml`).
+I dati di Grafana non persistono perché non c'è un volume: le dashboards
+vengono riprovisionate a ogni avvio dal folder monitoring/.
