@@ -33,6 +33,28 @@ docker compose up -d --build
 Jenkins impiega ~1 minuto al primo avvio (plugin + job seed). Poi la pipeline
 parte da sola a ogni push su `main`.
 
+## Installazione locale (senza Docker)
+
+Tutte le dipendenze Python del progetto (FastAPI, uvicorn, pydantic,
+scikit-learn, prometheus_client, ...) sono elencate in `requirements.txt`.
+Con Docker non serve nulla: la build le scarica già da sola. Per eseguire
+l'API in locale invece:
+
+```bash
+# 1) ambiente virtuale e attivazione
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2) scarica TUTTE le dipendenze dal requirements.txt
+pip install -r requirements.txt
+
+# 3) avvia l'API (senza Docker la porta e' libera, qui 8000)
+uvicorn src.api:app --host 0.0.0.0 --port 8000
+```
+
+Se aggiungi una dipendenza nuova, aggiornalo con `pip freeze > requirements.txt`
+e committalo: la pipeline lo preleva al push successivo.
+
 ## Servizi e indirizzi
 
 Porte di default (si cambiano tutte nel `.env`, vedi sotto):
